@@ -16,32 +16,39 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
 
+/**
+ * A classe detector escapsula a lógica de carregamento do modelo, inferencia e pos-processamento.
+ */
 class Detector(
-    private val context: Context,
-    private val modelPath: String,
-    private val labelPath: String,
-    private val detectorListener: DetectorListener
+    private val context: Context,                 //contexto para recursos, como o arquivo de modelo e de labels
+    private val modelPath: String,                 //caminho do proprio arquivo que armazena o modelo
+    private val labelPath: String,                 //caminho dos labels do modelo
+    private val detectorListener: DetectorListener //interface que permite realizar as predicoes
 ) {
 
-    private var interpreter: Interpreter? = null
-    private var labels = mutableListOf<String>()
+    private var interpreter: Interpreter? = null   //Referência ao modelo carregado.
+    private var labels = mutableListOf<String>()   //lista de labels do arquivo .txt
 
+    // variaveis de dimensao do tensor de entrada, numero de classes e elementos (tensor de saida)
     private var tensorWidth = 0
     private var tensorHeight = 0
     private var numChannel = 0
     private var numElements = 0
 
+    // configuracao de pre-processamento da imagem
     private val imageProcessor = ImageProcessor.Builder()
-        .add(NormalizeOp(INPUT_MEAN, INPUT_STANDARD_DEVIATION))
-        .add(CastOp(INPUT_IMAGE_TYPE))
+        .add(NormalizeOp(INPUT_MEAN, INPUT_STANDARD_DEVIATION))   //normaliza os pixels da imagem de entrada
+        .add(CastOp(INPUT_IMAGE_TYPE))                            //converte para o tipo correto, um casting de tipo.
         .build()
 
+    //Este metodo carrega o modelo
     fun setup() {
         val model = FileUtil.loadMappedFile(context, modelPath)
         val options = Interpreter.Options()
         options.numThreads = 4
         interpreter = Interpreter(model, options)
-
+        // pegam o acesso a entrada e a saida do modelo
+        // o operador de coalescência ?. é um SAVE CALL OPERATOR, verifica se o objeto precede o operador é NULL, se for nulo o metodo nao é chamado, esta relacionado ao conceito de nulidade de kotlin
         val inputShape = interpreter?.getInputTensor(0)?.shape() ?: return
         val outputShape = interpreter?.getOutputTensor(0)?.shape() ?: return
 
@@ -51,15 +58,15 @@ class Detector(
         numElements = outputShape[2]
 
         try {
-            val inputStream: InputStream = context.assets.open(labelPath)
-            val reader = BufferedReader(InputStreamReader(inputStream))
+            val inputStream: InputStream = context.assets.open(labelPath) //abre o arquivo de labels em um formato que permite ler em uma sequencia de bytes
+            val reader = BufferedReader(InputStreamReader(inputStream)) //converte o fluxo de bytes de inputStream em um fluxo de caracteres
 
-            var line: String? = reader.readLine()
-            while (line != null && line != "") {
-                labels.add(line)
+            var line: String? = reader.readLine()//le a proxima linha do arquivo, retornando string ou null
+            while (line != null && line != "") { //le enquanto o arquivo nao é null nem vazio
+                labels.add(line) //adiciona os rotulos das classes do txt
                 line = reader.readLine()
             }
-
+            // depois que acabar fecha esse processo de leitura dos rotulos disponiveis
             reader.close()
             inputStream.close()
         } catch (e: IOException) {
@@ -67,48 +74,51 @@ class Detector(
         }
     }
 
+    //limpa os recursos que o mudelo ja usou
     fun clear() {
         interpreter?.close()
         interpreter = null
     }
 
     fun detect(frame: Bitmap) {
-        interpreter ?: return
+        interpreter ?: return //verifica se o objeto interpreter esta disponivel
         if (tensorWidth == 0) return
         if (tensorHeight == 0) return
         if (numChannel == 0) return
         if (numElements == 0) return
 
-        var inferenceTime = SystemClock.uptimeMillis()
+        var inferenceTime = SystemClock.uptimeMillis() //retorna o tempo de processamento (inferencia em ms)
 
-        val resizedBitmap = Bitmap.createScaledBitmap(frame, tensorWidth, tensorHeight, false)
+        val resizedBitmap = Bitmap.createScaledBitmap(frame, tensorWidth, tensorHeight, false) //redimensiona a imagem para o padrao da entrada do modelo. Sem usar filtros.
 
-        val tensorImage = TensorImage(DataType.FLOAT32)
-        tensorImage.load(resizedBitmap)
-        val processedImage = imageProcessor.process(tensorImage)
-        val imageBuffer = processedImage.buffer
+        val tensorImage = TensorImage(DataType.FLOAT32) //cria um objeto que suporta o formato de float32 o tipo esperado pelo modelo
+        tensorImage.load(resizedBitmap) //carrega a imagem redimensionada
+        val processedImage = imageProcessor.process(tensorImage) //faz o pre processamento da imagem e a armazena
+        val imageBuffer = processedImage.buffer //extrai o buffer de dados da imagem processada, contendo pixels em formato de ponto flutuante, adequados para o modelo.
 
-        val output = TensorBuffer.createFixedSize(intArrayOf(1 , numChannel, numElements), OUTPUT_IMAGE_TYPE)
-        interpreter?.run(imageBuffer, output.buffer)
+        val output = TensorBuffer.createFixedSize(intArrayOf(1 , numChannel, numElements), OUTPUT_IMAGE_TYPE) //cria o tensor de saida com os canais de saida(deteccoes, classes etc.)
+        interpreter?.run(imageBuffer, output.buffer) // Executa o modelo com os dados de entrada da var imageBuffer, e armazena a saida em output.buffer
 
 
-        val bestBoxes = bestBox(output.floatArray)
-        inferenceTime = SystemClock.uptimeMillis() - inferenceTime
+        val bestBoxes = bestBox(output.floatArray) //Chamada da funcao bestBox que calcula as melhores caixas delimitadoras para um objeto, similar ao NMS.
+        inferenceTime = SystemClock.uptimeMillis() - inferenceTime //calcula o tempo de inferencia
 
 
         if (bestBoxes == null) {
-            detectorListener.onEmptyDetect()
+            detectorListener.onEmptyDetect() //se nenhum objeto for detectado
             return
         }
 
-        detectorListener.onDetect(bestBoxes, inferenceTime)
+        detectorListener.onDetect(bestBoxes, inferenceTime) // caso seja detectado
     }
 
-    private fun bestBox(array: FloatArray) : List<BoundingBox>? {
+    // essa funcao cria as caixas delimitadoras para cada objeto
+    private fun bestBox(array: FloatArray) : List<BoundingBox>? { //Espera a entrada do modelo, contendo as caixas e probabilidade de cada classe prevista, e retorna a lista de caixas delimitadoras
 
-        val boundingBoxes = mutableListOf<BoundingBox>()
+        val boundingBoxes = mutableListOf<BoundingBox>() //lista de caixas delimitadoras
 
-        for (c in 0 until numElements) {
+        for (c in 0 until numElements) { //cada c representa uma possivle deteccao
+            //faz a busca da classe com maior confiança
             var maxConf = -1.0f
             var maxIdx = -1
             var j = 4
@@ -122,7 +132,8 @@ class Detector(
                 arrayIdx += numElements
             }
 
-            if (maxConf > CONFIDENCE_THRESHOLD) {
+            if (maxConf > CONFIDENCE_THRESHOLD) { //filtro de confiança, ignora detecoes com baixa confiança
+                //calculo das Coordenadas da caixa
                 val clsName = labels[maxIdx]
                 val cx = array[c] // 0
                 val cy = array[c + numElements] // 1
@@ -137,6 +148,7 @@ class Detector(
                 if (x2 < 0F || x2 > 1F) continue
                 if (y2 < 0F || y2 > 1F) continue
 
+                //faz o calculo do limite da caixa a ser desenhada
                 boundingBoxes.add(
                     BoundingBox(
                         x1 = x1, y1 = y1, x2 = x2, y2 = y2,
@@ -149,23 +161,24 @@ class Detector(
 
         if (boundingBoxes.isEmpty()) return null
 
-        return applyNMS(boundingBoxes)
+        return applyNMS(boundingBoxes) //Após processar todas as detecções, aplica supressão de não máximos para remover caixas redundantes.
     }
 
     private fun applyNMS(boxes: List<BoundingBox>) : MutableList<BoundingBox> {
-        val sortedBoxes = boxes.sortedByDescending { it.cnf }.toMutableList()
+        val sortedBoxes = boxes.sortedByDescending { it.cnf }.toMutableList() //Ordena as caixas pela confiança (cnf) em ordem decrescente.
         val selectedBoxes = mutableListOf<BoundingBox>()
 
         while(sortedBoxes.isNotEmpty()) {
+            //Seleciona a caixa com maior confiança (first) e a remove da lista.
             val first = sortedBoxes.first()
             selectedBoxes.add(first)
             sortedBoxes.remove(first)
 
             val iterator = sortedBoxes.iterator()
-            while (iterator.hasNext()) {
+            while (iterator.hasNext()) { //Para cada caixa restante, calcula a Interseção sobre União (IoU)
                 val nextBox = iterator.next()
                 val iou = calculateIoU(first, nextBox)
-                if (iou >= IOU_THRESHOLD) {
+                if (iou >= IOU_THRESHOLD) { //remove caixas com iou superior a constante de iou
                     iterator.remove()
                 }
             }
@@ -174,6 +187,7 @@ class Detector(
         return selectedBoxes
     }
 
+    //calcula a intersecao sobre uniao (IoU)
     private fun calculateIoU(box1: BoundingBox, box2: BoundingBox): Float {
         val x1 = maxOf(box1.x1, box2.x1)
         val y1 = maxOf(box1.y1, box2.y1)
@@ -185,11 +199,12 @@ class Detector(
         return intersectionArea / (box1Area + box2Area - intersectionArea)
     }
 
-    interface DetectorListener {
-        fun onEmptyDetect()
-        fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long)
+    interface DetectorListener { //permite definicao de contrato para permitir invocao
+        fun onEmptyDetect() //quando nenhuma deteccao for encontrada
+        fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) //Método chamado quando detecções são encontradas
     }
 
+    // Companion object é usado para agrupar constantes e valores relacionados que são compartilhados por todas as instâncias da classe.
     companion object {
         private const val INPUT_MEAN = 0f
         private const val INPUT_STANDARD_DEVIATION = 255f

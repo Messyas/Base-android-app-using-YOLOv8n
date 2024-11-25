@@ -24,13 +24,13 @@ import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity(), Detector.DetectorListener {
     private lateinit var binding: ActivityMainBinding
-    private val isFrontCamera = false
+    private val isFrontCamera = false //define que a camera frontal nao sera usada
 
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
-    private lateinit var detector: Detector
+    private lateinit var detector: Detector //instancia para realizar as predicoes usando o modelo
 
     private lateinit var cameraExecutor: ExecutorService
 
@@ -39,8 +39,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this)
-        detector.setup()
+        detector = Detector(baseContext, MODEL_PATH, LABELS_PATH, this) // passa o caminho do modelo e dos labels
+        detector.setup() //configura o modelo
 
         if (allPermissionsGranted()) {
             startCamera()
@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
+    // Inicializa o provedor da camera e chamada do metodo bindCameUseCases para configurar casos de uso
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
@@ -59,6 +60,13 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    //Verificação do cameraProvider: Garante que o provedor da câmera está inicializado.
+    //Configuração do seletor da câmera:
+    //Define a câmera traseira (LENS_FACING_BACK) como a fonte de captura.
+    //Configuração da pré-visualização:
+    //Define proporção e rotação da visualização da câmera.
+    //Configuração da análise de imagens:
+    //Analisa frames capturados no formato RGBA, com estratégia para manter apenas o último frame disponível.
     private fun bindCameraUseCases() {
         val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
 
@@ -151,7 +159,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
             requestPermissionLauncher.launch(REQUIRED_PERMISSIONS)
         }
     }
-
+    //TAG: Usado para identificar logs.
+    //REQUIRED_PERMISSIONS: Lista de permissões necessárias para o funcionamento do aplicativo.
     companion object {
         private const val TAG = "Camera"
         private const val REQUEST_CODE_PERMISSIONS = 10
@@ -164,6 +173,8 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         binding.overlay.invalidate()
     }
 
+    //Tempo de inferência exibido.
+    //Resultado das detecções na sobreposição gráfica.
     override fun onDetect(boundingBoxes: List<BoundingBox>, inferenceTime: Long) {
         runOnUiThread {
             binding.inferenceTime.text = "${inferenceTime}ms"
@@ -174,3 +185,4 @@ class MainActivity : AppCompatActivity(), Detector.DetectorListener {
         }
     }
 }
+

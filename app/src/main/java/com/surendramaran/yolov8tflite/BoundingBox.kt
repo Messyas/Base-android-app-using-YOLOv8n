@@ -1,5 +1,9 @@
 package com.surendramaran.yolov8tflite
 
+/**
+ * Classe de dados para armazenar as informações de uma caixa delimitadora (bounding box)
+ */
+
 data class BoundingBox(
     val x1: Float,
     val y1: Float,
@@ -9,7 +13,7 @@ data class BoundingBox(
     val cy: Float,
     val w: Float,
     val h: Float,
-    val cnf: Float,
-    val cls: Int,
-    val clsName: String
+    val cnf: Float, //confiança
+    val cls: Int, //numero do array de classes
+    val clsName: String //nome da classe
 )
