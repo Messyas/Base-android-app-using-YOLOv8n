@@ -1,0 +1,4 @@
+Glass
+Metal
+Plastic
+Trash
