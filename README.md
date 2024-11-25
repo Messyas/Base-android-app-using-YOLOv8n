@@ -1,13 +1,14 @@
-## YOLOv8 Live Object Detection Android Application
+## Aplicativo Android de Detecção de Objetos ao Vivo com YOLOv8n
 
-### Description
-This Android application is designed to perform live object detection using the YOLOv8 machine learning model. YOLOv8 (You Only Look Once version 8) is known for its real-time object detection capabilities, and this app brings that functionality to Android devices. 
+### Descrição
+Este aplicativo Android é capaz de realizar a detecção de objetos ao vivo utilizando o modelo YOLOv8n. O YOLO (You Only Look Once) é conhecido por suas capacidades de detecção de objetos em tempo real, e este app traz essa funcionalidade para dispositivos Android.
 
-### Getting Started
-To use this repository for any custom YOLOv8 Object detection model, follow these steps:
-1. Clone this repository to your local machine using `git clone https://github.com/surendramaran/YOLOv8-TfLite-Object-Detector`.
-2. Put your .tflite model and .txt label file inside the assets folder
-3. Rename paths of your model and labels file in Constants.kt file
-4. **Build and Run:**
+### Instalação
+Para usar este repositório com qualquer modelo personalizado de detecção de objetos YOLOv8, siga estes passos:
+
+1. Clone este repositório.
+2. Caso deseje, coloque o seu modelo .tflite e o arquivo de rótulos .txt dentro da pasta assets.
+3. Renomeie os caminhos para o modelo e o arquivo de rótulos no arquivo "Constants.kt".
+4. Rode o projeto.
 
 
